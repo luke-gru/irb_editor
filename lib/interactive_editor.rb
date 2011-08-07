@@ -23,8 +23,15 @@ class InteractiveEditor
     object = object == TOPLEVEL_BINDING.eval('self') ? nil : object
     # instead of always going back to the same file, pass the symbol :new to get
     # a new Tempfile again
-    file && file.respond_to?(:scan) ? file = File.expand_path(file) : @symfile = true
-    copy == :nocopy ? @copy = nil : @copy = true
+    if file && file.respond_to?(:scan)
+      file = File.expand_path(file)
+      @symfile = false
+    else
+      @symfile = true
+    end
+
+    copy == :nocopy ? @copy = false : @copy = true
+
     if @symfile
       case file
       when :new
