@@ -19,14 +19,25 @@ class InteractiveEditor
     @editor = editor.to_s
   end
 
-  def edit(object, file=nil)
+  def edit(object, file=nil, copy=:nocopy)
     object = object == TOPLEVEL_BINDING.eval('self') ? nil : object
-    # instead of always going back to the same file, pass a symbol to get
+    # instead of always going back to the same file, pass the symbol :new to get
     # a new Tempfile again
-    file && file.respond_to?(:scan) ? file = File.expand_path(file) : @symarg = true
-    file.respond_to?(:to_proc) ? @file = nil : nil
+    file && file.respond_to?(:scan) ? file = File.expand_path(file) : @symfile = true
+    copy == :nocopy ? @copy = nil : @copy = true
+    if @symfile
+      case file
+      when :new
+        @file = nil
+      end
+    end
 
-    current_file = if file && !@symarg
+    if @copy
+      @orig = File.expand_path(file)
+      @file = nil
+    end
+
+    current_file = if file && !@symfile && !@copy
       FileUtils.touch(file) unless File.exist?(file)
       File.new(file)
     else
@@ -42,6 +53,14 @@ class InteractiveEditor
     else
       @file = current_file
       mtime = File.stat(@file.path).mtime
+    end
+
+    if @copy
+      File.open(@orig, "r+") do |outf|
+        File.open(@file, "w+") do |inf|
+          inf << outf.read
+        end
+      end
     end
 
     args = Shellwords.shellwords(@editor) #parse @editor as arguments could be complex
@@ -60,10 +79,10 @@ class InteractiveEditor
     eval(IO.read(@file.path), TOPLEVEL_BINDING)
   end
 
-  def self.edit(editor, self_, file=nil)
+  def self.edit(editor, self_, file=nil, copy=:nocopy)
     #maybe serialise last file to disk, for recovery
     (IRB.conf[:interactive_editors] ||=
-      Hash.new { |h,k| h[k] = InteractiveEditor.new(k) })[editor].edit(self_, file)
+      Hash.new { |h,k| h[k] = InteractiveEditor.new(k) })[editor].edit(self_, file, copy)
   end
 
   module Exec
